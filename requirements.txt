@@ -1,0 +1,3 @@
+msg_parser
+bs4
+lxml

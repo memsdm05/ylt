@@ -16,7 +16,7 @@ def clear_and_create(*paths: Path):
         path.mkdir()
 
 
-data = Path("D:/Documents/yo_la_tengo")
+data = Path("E:/docs/yo_la_tengo")
 
 parsed = Path("data/parsed")
 raw = Path("data/raw")
@@ -40,8 +40,9 @@ def remove_bad_chars(r: str) -> str:
 
 def cutout_body(p: str) -> str:
     try:
-        end = p.index("Allons-y!")
-        return p[:end]
+        start = p.index(",") + 1
+        end = p.index("-y!")
+        return p[start:end].strip()
     except:
         raise AttributeError  # HAHAHAHAHHA
 
