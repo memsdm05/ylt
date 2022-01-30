@@ -1,6 +1,4 @@
 import contextlib
-
-import torch
 import os
 from typing import Callable, IO, Optional, Union
 from datetime import datetime
@@ -9,6 +7,8 @@ import msg_parser
 from torch.utils.data import Dataset
 from pathlib import Path
 import lxml
+
+import args
 
 
 class Pipeline:
@@ -21,14 +21,17 @@ class Pipeline:
             current = step(current)
         return current
 
+
 Openable = Union[IO, os.PathLike]
+
 
 class YLTDataset(Dataset):
     SOT = "<|startoftext|>"
     EOT = "<|endoftext|>"
 
     def __init__(self, raw_emails: list[Openable], *,
-                 limit: Optional[tuple[datetime, datetime]] = None):
+                 limit: Optional[tuple[datetime, datetime]] = None,
+                 tokenizer):
         super(YLTDataset, self).__init__()
 
         if limit:
@@ -43,13 +46,6 @@ class YLTDataset(Dataset):
 
         self.ylts: list[str] = []
         self._parse(raw_emails)
-
-        self.average_len = self._calc_average_length()
-
-    def _calc_average_length(self) -> int:
-        return int(
-            sum([len(ylt) for ylt in self.ylts]) / len(self.ylts)
-        )
 
     def _cutout(self, raw: str) -> str:
         start = raw.find(",") + 1
@@ -88,7 +84,7 @@ class YLTDataset(Dataset):
 
     @property
     def train_len(self) -> int:
-        return int(len(self) * 0.9)
+        return int(len(self) * args.TRAIN_PORTION)
 
     @property
     def eval_len(self):
