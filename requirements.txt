@@ -1,3 +1,6 @@
 msg_parser
-bs4
-lxml
+bs4~=0.0.1
+lxml~=4.7.1
+torch~=1.10.2+cu113
+transformers~=4.16.1
+beautifulsoup4~=4.10.0

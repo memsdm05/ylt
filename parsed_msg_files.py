@@ -24,6 +24,7 @@ clear_and_create(parsed, raw)
 
 
 mails = []
+GPT_DELIMITER = "<|endoftext|>"
 
 # BODY_PATTERN = re.compile("Hello all, (.*?)Allons-y!")
 
@@ -35,7 +36,7 @@ class YLTMail:
 
 
 def remove_bad_chars(r: str) -> str:
-    return ''.join([i if ord(i) < 128 else ' ' for i in r])
+    return
 
 
 def cutout_body(p: str) -> str:
@@ -68,9 +69,10 @@ mails.sort(key=lambda m: m.sent)
 all = ""
 for mail in mails:
     filename = parsed / (mail.sent.strftime("%Y-%m-%d") + ".txt")
-    all += mail.parsed_body + "\n"
-    with filename.open("w") as f:
-        f.write(mail.parsed_body)
+
+    text = mail.parsed_body + GPT_DELIMITER
+
+    all += text
 
 with (parsed / "all.txt").open("w") as f:
     f.write(all)
