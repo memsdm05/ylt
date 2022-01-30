@@ -45,12 +45,11 @@ def cutout_body(p: str) -> str:
         end = p.index("-y!")
         return p[start:end].strip()
     except:
-        raise AttributeError  # HAHAHAHAHHA
-
+        raise AttributeError
 
 for f in data.iterdir():
     with contextlib.suppress(AttributeError):
-        msg = MsOxMessage(str(f))
+        msg = MsOxMessage(f)
         # msg.sent_date
         # Sun, 4 Apr 2021 15:24:06 +0000
 
