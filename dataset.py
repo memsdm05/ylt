@@ -2,10 +2,13 @@ import contextlib
 import os
 from typing import Callable, IO, Optional, Union
 from datetime import datetime
+
+import torch
 from bs4 import BeautifulSoup
 import msg_parser
 from torch.utils.data import Dataset
 from pathlib import Path
+from transformers import GPT2Tokenizer
 import lxml
 
 import args
@@ -22,35 +25,47 @@ class Pipeline:
         return current
 
 
+def _cutout(raw: str) -> str:
+    start = raw.find(",") + 1
+    end = raw.find("be kind!") + len("be kind!")
+    return raw[start:end]
+
+
+_clean = Pipeline(
+    lambda r: r.strip(),  # remove weirdness
+    lambda r: ''.join([i if ord(i) < 128 else '' for i in r]),  # remove non unicode characters
+    _cutout
+)
+
 Openable = Union[IO, os.PathLike]
 
 
 class YLTDataset(Dataset):
+    """
+    I want to throw myself into a fire
+    """
     SOT = "<|startoftext|>"
     EOT = "<|endoftext|>"
+    PAD = "<|pad|>"
 
     def __init__(self, raw_emails: list[Openable], *,
-                 limit: Optional[tuple[datetime, datetime]] = None,
-                 tokenizer):
+                 limit: Optional[tuple[datetime, datetime]] = None):
         super(YLTDataset, self).__init__()
+
+        self.tokenizer = GPT2Tokenizer.from_pretrained(
+            'gpt2',
+            bos_token=self.SOT,
+            eos_token=self.EOT,
+            pad_token=self.PAD,
+            return_token_type_ids=False,
+        )
 
         if limit:
             assert limit[0] < limit[1]
         self.limit = limit
 
-        self.clean = Pipeline(
-            lambda r: r.strip(),  # remove weirdness
-            lambda r: ''.join([i if ord(i) < 128 else '' for i in r]),  # remove non unicode characters
-            self._cutout
-        )
-
-        self.ylts: list[str] = []
-        self._parse(raw_emails)
-
-    def _cutout(self, raw: str) -> str:
-        start = raw.find(",") + 1
-        end = raw.find("be kind!") + len("be kind!")
-        return raw[start:end]
+        self._preprocess(raw_emails)
+        self._tokenize()
 
     @classmethod
     def from_dir(cls, root: str, *args, **kwargs):
@@ -58,7 +73,13 @@ class YLTDataset(Dataset):
         assert p.is_dir()
         return cls(list(p.iterdir()), *args, **kwargs)
 
-    def _parse(self, raws: list[Openable]):
+    def to_cache(self):
+        with open(".ylt_cache.txt", "w") as f:
+            for ylt in self.ylts:
+                f.write(ylt + "\n" + "=" * 10 + "\n")
+
+    def _preprocess(self, raws: list[Openable]):
+        self.ylts: list[str] = []
         for raw in raws:
             try:
                 msg = msg_parser.MsOxMessage(raw)
@@ -70,17 +91,31 @@ class YLTDataset(Dataset):
                 continue
 
             body = BeautifulSoup(msg.body, "lxml").text
-            cleaned = self.clean(body)
+            cleaned = _clean(body)
 
             if len(cleaned) < 10: continue
 
-            self.ylts.append(self.SOT + cleaned + self.EOT)
+            self.ylts.append(cleaned)
+
+    def _tokenize(self):
+        self.encodings = []
+        for ylt in self.ylts:
+            out = self.tokenizer(
+                self.SOT + ylt + self.EOT,
+                truncation=True,
+                max_length=768,
+                padding="max_length"
+            )
+            self.encodings.append((
+                torch.unsqueeze(torch.tensor(out["input_ids"]), 0),
+                torch.unsqueeze(torch.tensor(out["attention_mask"]), 0)
+            ))
 
     def __len__(self):
-        return len(self.ylts)
+        return len(self.encodings)
 
     def __getitem__(self, idx):
-        return self.ylts[idx]
+        return self.encodings[idx]
 
     @property
     def train_len(self) -> int:
