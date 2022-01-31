@@ -1,16 +1,16 @@
+import os.path
+import pickle
 import random
 
 from transformers import GPT2LMHeadModel, GPT2Config
-from transformers import get_linear_schedule_with_warmup, Trainer, TrainingArguments
+from transformers import Trainer, TrainingArguments
 from dataset import YLTDataset
 import torch
 from torch.utils.data import random_split
-from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
-from torch.optim import AdamW
 import sys
-import time
 import args
 import numpy as np
+import gc
 
 # random seeds
 s = args.SEED
@@ -20,13 +20,20 @@ if s:
     torch.manual_seed(s)
     torch.cuda.manual_seed(s)
 
-torch.cuda.empty_cache()
+dataset = None
+if not os.path.exists("dataset.pickle"):
+    dataset = YLTDataset.from_dir(sys.argv[1])
+    if args.DATASET_CACHE:
+        with open("dataset.pickle", "wb") as f:
+            pickle.dump(dataset, f)
+else:
+    with open("dataset.pickle", "rb") as f:
+        dataset = pickle.load(f)
 
-dataset = YLTDataset.from_dir(sys.argv[1])
-dataset.tokenizer.save_pretrained("./data/tokenizer")
+dataset.tokenizer.save_pretrained(sys.argv[3])
 # dataset.to_cache()
-config = GPT2Config.from_pretrained('gpt2', output_hidden_states=False)
-model = GPT2LMHeadModel.from_pretrained('gpt2', config=config)
+config = GPT2Config.from_pretrained(args.BASE_MODEL, output_hidden_states=False)
+model = GPT2LMHeadModel.from_pretrained(args.BASE_MODEL, config=config)
 model.resize_token_embeddings(len(dataset.tokenizer))
 # def create_dataloader(ds):
 #     return DataLoader(
@@ -36,6 +43,8 @@ model.resize_token_embeddings(len(dataset.tokenizer))
 #     )
 
 train_set, eval_set = random_split(dataset, [dataset.train_len, dataset.eval_len])
+
+
 # train_dataloader = create_dataloader(train_set)
 # eval_dataloader = create_dataloader(eval_set)
 #
@@ -88,6 +97,7 @@ def dummy_data_collector(features):
         "attention_mask": torch.stack([f[1] for f in features])
     }
 
+
 training_args = TrainingArguments(
     output_dir="./data/results",
     num_train_epochs=args.EPOCHS,
@@ -95,6 +105,11 @@ training_args = TrainingArguments(
     per_device_eval_batch_size=args.BATCH_SIZE,
     warmup_steps=args.WARMUP_STEPS,
     weight_decay=args.WEIGHT_DECAY,
+    overwrite_output_dir=True,
+    do_train=True,
+    do_eval=True
+
+    # fp16=True
 )
 
 trainer = Trainer(
@@ -105,5 +120,8 @@ trainer = Trainer(
     data_collator=dummy_data_collector
 )
 
+gc.collect()
+torch.cuda.empty_cache()
+# torch.cuda.set_per_process_memory_fraction(0.5)
 trainer.train()
-trainer.save_model("./data/model")
+trainer.save_model(sys.argv[2])

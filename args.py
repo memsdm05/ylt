@@ -1,11 +1,13 @@
 # Training Args
-EPOCHS = 4
+BASE_MODEL = "gpt2"
+EPOCHS = 6
 # LRU = 5e-4
 WARMUP_STEPS = 1e2
 # EPSILON = 1e-8
 SEED = 42
 BATCH_SIZE = 1
 WEIGHT_DECAY = 0.01
+DATASET_CACHE = True
 
 # Dataset Args
 TRAIN_PORTION = 0.9

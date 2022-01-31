@@ -27,14 +27,14 @@ class Pipeline:
 
 def _cutout(raw: str) -> str:
     start = raw.find(",") + 1
-    end = raw.find("be kind!") + len("be kind!")
+    end = raw.find("be kind!") - len("Laugh hardrun fast")
     return raw[start:end]
-
 
 _clean = Pipeline(
     lambda r: r.strip(),  # remove weirdness
     lambda r: ''.join([i if ord(i) < 128 else '' for i in r]),  # remove non unicode characters
-    _cutout
+    _cutout,
+    lambda r: r + " Laugh Hard... Run Fast... Be Kind!"
 )
 
 Openable = Union[IO, os.PathLike]
@@ -61,7 +61,9 @@ class YLTDataset(Dataset):
         )
 
         if limit:
-            assert limit[0] < limit[1]
+            end = limit[1]
+            if not end: end = datetime.now()
+            assert limit[0] < end
         self.limit = limit
 
         self._preprocess(raw_emails)

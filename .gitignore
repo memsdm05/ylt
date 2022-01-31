@@ -2,3 +2,5 @@ venv
 data
 __pycache__
 .cached_ylts.json
+dataset.pickle
+.ylt_cache.txt
