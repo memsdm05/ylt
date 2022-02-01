@@ -10,7 +10,7 @@ def build():
     r = 0
     c = ""
     ngram = ""
-    with open("data/parsed/all.txt", "r") as f:
+    with open("../data/parsed/all.txt", "r") as f:
         while True:
             try:
                 c = f.read(1)

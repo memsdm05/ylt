@@ -99,7 +99,7 @@ def dummy_data_collector(features):
 
 
 training_args = TrainingArguments(
-    output_dir="./data/results",
+    output_dir="../data/results",
     num_train_epochs=args.EPOCHS,
     per_device_train_batch_size=args.BATCH_SIZE,
     per_device_eval_batch_size=args.BATCH_SIZE,
