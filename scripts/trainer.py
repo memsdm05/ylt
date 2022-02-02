@@ -105,10 +105,10 @@ class YLTDataset(Dataset):
             ))
 
     def __len__(self):
-        return len(self.encodings)
+        return len(self.ylts)
 
     def __getitem__(self, idx):
-        return self.encodings[idx]
+        return self.ylts[idx]
 
     @property
     def train_len(self) -> int:
@@ -152,7 +152,7 @@ training_args = TrainingArguments(
     num_train_epochs=EPOCHS,
     per_device_train_batch_size=BATCH_SIZE,
     per_device_eval_batch_size=BATCH_SIZE,
-    warmup_steps=int(WARMUP_STEPS), # ??
+    warmup_steps=int(WARMUP_STEPS),  # ??
     weight_decay=WEIGHT_DECAY,
     overwrite_output_dir=True,
     do_train=True,
