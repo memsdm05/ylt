@@ -118,15 +118,6 @@ class YLTDataset(Dataset):
     def eval_len(self):
         return len(self) - self.train_len
 
-
-# random seeds
-s = args.SEED
-if s:
-    random.seed(s)
-    np.random.seed(s)
-    torch.manual_seed(s)
-    torch.cuda.manual_seed(s)
-
 dataset = YLTDataset("TODO")
 dataset.tokenizer.save_pretrained(sys.argv[3])
 
@@ -155,6 +146,7 @@ training_args = TrainingArguments(
     warmup_steps=int(WARMUP_STEPS),  # ??
     weight_decay=WEIGHT_DECAY,
     overwrite_output_dir=True,
+    seed=args.seed,
     do_train=True,
     do_eval=True
 )
