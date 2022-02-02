@@ -1,16 +1,123 @@
+import argparse
 import os.path
 import pickle
 import random
-
+from datetime import datetime
+from typing import Callable, IO, Optional, Union, Any
 from transformers import GPT2LMHeadModel, GPT2Config
+from transformers import GPT2Tokenizer
 from transformers import Trainer, TrainingArguments
-from dataset import YLTDataset
 import torch
-from torch.utils.data import random_split
+from torch.utils.data import random_split, Dataset
+from pathlib import Path
+from bs4 import BeautifulSoup
 import sys
-import args
+import msg_parser
 import numpy as np
 import gc
+
+# todo finish cleanup
+# todo eliminate pipeline
+
+# CONSTANTS
+EPOCHS = 6
+BASE = "gpt2"
+WARMUP_STEPS = 1e2
+BATCH_SIZE = 1
+WEIGHT_DECAY = 0.01
+TRAIN_PORTION = 0.1
+
+parser = argparse.ArgumentParser(description="Fine-tunes GPT2 to generate Yo La Tengo's")
+parser.add_argument("-s", "--seed")
+parser.add_argument("--save-to")
+args = parser.parse_args()
+
+
+def _cutout(raw: str) -> str:
+    start = raw.find(",") + 1
+    end = raw.find("be kind!") - len("Laugh hardrun fast")
+    return raw[start:end]
+
+
+Openable = Union[IO, os.PathLike]
+
+
+class YLTDataset(Dataset):
+    """
+    I want to throw myself into a fire
+    """
+    SOT = "<|startoftext|>"
+    EOT = "<|endoftext|>"
+    PAD = "<|pad|>"
+
+    _clean_pipline = [
+        lambda r: r.strip(),  # remove weirdness
+        lambda r: ''.join([i if ord(i) < 128 else '' for i in r]),  # remove non unicode characters
+        _cutout,
+        lambda r: r + " Laugh Hard... Run Fast... Be Kind!"
+    ]
+
+    def __init__(self, path: os.PathLike):
+        super(YLTDataset, self).__init__()
+
+        path = Path(path)
+        assert path.exists() and path.is_dir()
+
+        self.tokenizer = GPT2Tokenizer.from_pretrained(
+            BASE,
+            bos_token=self.SOT,
+            eos_token=self.EOT,
+            pad_token=self.PAD,
+            return_token_type_ids=False,
+        )
+
+        self.ylts = []
+        self._process(path)
+
+    def clean(self, raw: str) -> str:
+        current = raw
+        for step in self._clean_pipeline:
+            current = step(current)
+
+    def _process(self, path: Path):
+        for file in path.iterdir():
+            try:
+                msg = msg_parser.MsOxMessage(file)
+            except AttributeError:
+                continue
+
+            body = BeautifulSoup(msg.body, "lxml").text
+            cleaned = self.clean(body)
+
+            if len(cleaned) < 10:
+                continue
+
+            out = self.tokenizer(
+                self.SOT + cleaned + self.EOT,
+                truncation=True,
+                max_length=768,
+                padding="max_length"
+            )
+
+            self.ylts.append((
+                torch.unsqueeze(torch.tensor(out["input_ids"]), 0),
+                torch.unsqueeze(torch.tensor(out["attention_mask"]), 0)
+            ))
+
+    def __len__(self):
+        return len(self.encodings)
+
+    def __getitem__(self, idx):
+        return self.encodings[idx]
+
+    @property
+    def train_len(self) -> int:
+        return int(len(self) * args.TRAIN_PORTION)
+
+    @property
+    def eval_len(self):
+        return len(self) - self.train_len
+
 
 # random seeds
 s = args.SEED
@@ -20,75 +127,17 @@ if s:
     torch.manual_seed(s)
     torch.cuda.manual_seed(s)
 
-dataset = None
-if not os.path.exists("dataset.pickle"):
-    dataset = YLTDataset.from_dir(sys.argv[1])
-    if args.DATASET_CACHE:
-        with open("dataset.pickle", "wb") as f:
-            pickle.dump(dataset, f)
-else:
-    with open("dataset.pickle", "rb") as f:
-        dataset = pickle.load(f)
-
+dataset = YLTDataset("TODO")
 dataset.tokenizer.save_pretrained(sys.argv[3])
-# dataset.to_cache()
+
 config = GPT2Config.from_pretrained(args.BASE_MODEL, output_hidden_states=False)
 model = GPT2LMHeadModel.from_pretrained(args.BASE_MODEL, config=config)
 model.resize_token_embeddings(len(dataset.tokenizer))
-# def create_dataloader(ds):
-#     return DataLoader(
-#         ds,
-#         sampler=RandomSampler(ds),
-#         batch_size=args.BATCH_SIZE
-#     )
 
 train_set, eval_set = random_split(dataset, [dataset.train_len, dataset.eval_len])
 
 
-# train_dataloader = create_dataloader(train_set)
-# eval_dataloader = create_dataloader(eval_set)
-#
-# optimizer = AdamW(
-#     model.parameters(),
-#     lr=args.LRU,  # learning rate
-#     eps=args.EPSILON,  # epsilon
-# )
-# scheduler = get_linear_schedule_with_warmup(
-#     optimizer=optimizer,
-#     num_warmup_steps=args.WARMUP_STEPS,
-#     num_training_steps=len(train_dataloader) * args.WARMUP_STEPS
-# )
-
-
-# for epoch in range(args.EPOCHS):
-#     print(f"=== EPOCH {epoch + 1} ===")
-#
-#     start = time.perf_counter()
-#     total_loss = 0
-#     model.train()
-#
-#     for step, batch in enumerate(train_dataloader):
-#         ids = labels = batch[0].to(device)
-#         masks = batch[1].to(device)
-#
-#         model.zero_grad()
-#
-#         outputs = model(
-#             ids,
-#             labels=labels,
-#             attention_mask=masks,
-#             token_type_ids=None
-#         )
-#
-#         loss = outputs[0]
-#         batch_loss = loss.item()
-#         total_loss += batch_loss
-#
-#         loss.backward()
-#         optimizer.step()
-#         scheduler.step()
-
-def dummy_data_collector(features):
+def data_collector(features):
     stack = torch.stack([f[0] for f in features])
 
     return {
@@ -100,16 +149,14 @@ def dummy_data_collector(features):
 
 training_args = TrainingArguments(
     output_dir="../data/results",
-    num_train_epochs=args.EPOCHS,
-    per_device_train_batch_size=args.BATCH_SIZE,
-    per_device_eval_batch_size=args.BATCH_SIZE,
-    warmup_steps=args.WARMUP_STEPS,
-    weight_decay=args.WEIGHT_DECAY,
+    num_train_epochs=EPOCHS,
+    per_device_train_batch_size=BATCH_SIZE,
+    per_device_eval_batch_size=BATCH_SIZE,
+    warmup_steps=int(WARMUP_STEPS), # ??
+    weight_decay=WEIGHT_DECAY,
     overwrite_output_dir=True,
     do_train=True,
     do_eval=True
-
-    # fp16=True
 )
 
 trainer = Trainer(
@@ -117,7 +164,7 @@ trainer = Trainer(
     args=training_args,
     train_dataset=train_set,
     eval_dataset=eval_set,
-    data_collator=dummy_data_collector
+    data_collator=data_collector
 )
 
 gc.collect()
