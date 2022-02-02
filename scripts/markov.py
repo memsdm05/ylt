@@ -2,9 +2,12 @@ import random
 import string
 
 ngrams = {}
-valid_chars = string.ascii_lowercase + string.ascii_uppercase + string.digits + "',!?. []\n"
+valid_chars = (
+    string.ascii_lowercase + string.ascii_uppercase + string.digits + "',!?. []\n"
+)
 NGRAM_SIZE = 5
 MAX_INPUT = 0
+
 
 def build():
     r = 0
@@ -41,6 +44,8 @@ def build():
 
 
 GEN_SIZE = 1000
+
+
 def generate():
     ngram = "Hello"
     out = ngram
@@ -54,7 +59,6 @@ def generate():
     print(out)
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     build()
     generate()
