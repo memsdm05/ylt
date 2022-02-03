@@ -1,3 +1,10 @@
+"""
+The trainer script for Yo La Tengo Generation. Should be run on beefy machines
+"""
+
+__author__ = "Ben Browner"
+__license__ = "MIT"
+
 import argparse
 import logging
 import os.path
@@ -40,7 +47,7 @@ parser.add_argument(
     "-o",
     "--output",
     type=Path,
-    default=Path("./output"),
+    default=Path("../output"),
     help="The directory that the model " "and the tokenizer will save to",
 )
 
@@ -89,7 +96,6 @@ class YLTDataset(Dataset):
             bos_token=self.SOT,
             eos_token=self.EOT,
             pad_token=self.PAD,
-            return_token_type_ids=False,
         )
 
         self.ylts = []
@@ -117,7 +123,6 @@ class YLTDataset(Dataset):
             out = self.tokenizer(
                 self.SOT + cleaned + self.EOT,
                 truncation=True,
-                max_length=768,
                 padding="max_length",
             )
 
@@ -191,6 +196,6 @@ torch.cuda.empty_cache()
 
 print("(4/4) training...")
 trainer.train()
-trainer.save_model(sys.argv[2])
+trainer.save_model(str(args.output / "ylt_model"))
 
 print("Done!")
