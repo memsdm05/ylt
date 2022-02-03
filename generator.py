@@ -6,5 +6,8 @@ generator = pipeline(
     "text-generation", model=model, tokenizer=tokenizer, early_stopping=True
 )
 
+class YLTGenerator:
+    pass
+
 set_seed(42)
 print(generator("", num_workers=8, max_length=300)[0]["generated_text"])
